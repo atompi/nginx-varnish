@@ -5,6 +5,8 @@ services:
   nginx-varnish:
     image: atompi/nginx-varnish:1.26.1
     restart: always
+    cap_add:
+      - SYS_RESOURCE
     ports:
       - "80:80"
       - "443:443"
