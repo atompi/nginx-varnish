@@ -1,0 +1,124 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-gateway
+  labels:
+    app: nginx-gateway
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: nginx-gateway
+  template:
+    metadata:
+      labels:
+        app: nginx-gateway
+    spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: nginx-gateway
+      imagePullSecrets:
+      - name: image-pull-secret-default
+      containers:
+        - name: nginx
+          image: "atompi/nginx-varnish:1.26.1"
+          imagePullPolicy: Always
+          securityContext:
+            capabilities:
+              add:
+                - SYS_RESOURCE
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+            - name: https
+              containerPort: 443
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /nginx_status
+              port: 80
+          readinessProbe:
+            httpGet:
+              path: /nginx_status
+              port: 80
+            timeoutSeconds: 3
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          resources:
+            limits:
+              cpu: 2
+              memory: 8Gi
+            requests:
+              cpu: 1
+              memory: 4Gi
+          volumeMounts:
+          - name: varnish-vcl
+            mountPath: /etc/varnish/default.vcl
+            subPath: default.vcl
+          - name: nginx-conf
+            mountPath: /etc/nginx/nginx.conf
+            subPath: nginx.conf
+          - name: nginx-conf-conf-d
+            mountPath: /etc/nginx/conf.d
+          - name: nginx-conf-core-d
+            mountPath: /etc/nginx/core.d
+          - name: nginx-conf-ssl-d
+            mountPath: /etc/nginx/ssl.d
+          - name: nginx-conf-ssl-d-certs
+            mountPath: /etc/nginx/ssl.d/certs
+      volumes:
+      - name: varnish-vcl
+        configMap:
+          name: varnish-vcl
+          defaultMode: 0644
+      - name: nginx-conf
+        configMap:
+          name: nginx-conf
+          defaultMode: 0644
+      - name: nginx-conf-conf-d
+        configMap:
+          name: nginx-conf-conf-d
+      - name: nginx-conf-core-d
+        configMap:
+          name: nginx-conf-core-d
+      - name: nginx-conf-ssl-d
+        configMap:
+          name: nginx-conf-ssl-d
+      - name: nginx-conf-ssl-d-certs
+        configMap:
+          name: nginx-conf-ssl-d-certs
+      nodeSelector:
+        node_role: nginxGateway
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-gateway
+  labels:
+    app: nginx-gateway
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      nodePort: 32080
+      port: 80
+      targetPort: 80
+    - name: https
+      nodePort: 32443
+      port: 443
+      targetPort: 443
+  selector:
+    app: nginx-gateway

@@ -1,0 +1,7 @@
+NFILES=131072
+MEMLOCK=85983232
+
+DAEMON_OPTS="-a :6081 \
+             -f /etc/varnish/default.vcl \
+             -s malloc,4G"
+
